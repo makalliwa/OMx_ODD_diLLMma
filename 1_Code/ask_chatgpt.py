@@ -1,17 +1,23 @@
+# Import necessary libraries
 import os
-import openai  # Library to interact with OpenAI API
+# Library to interact with OpenAI API
+import openai
 
 # Step 1: Load the API key from the environment variable
-api_key = os.getenv("OPENAI_API_KEY")  # Retrieve the API key from the environment variable
-if not api_key:  # Check if the API key is missing
-    raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+# Ensure the API key is retrieved from the environment variable and set for OpenAI
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    print("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+    exit()
 
-openai.api_key = api_key  # Set the API key for OpenAI
+openai.api_key = api_key
 
 # Step 2: Define the folder containing the images
+# Set the folder path where images are stored
 image_folder = "/Users/makalliwa/Documents/OM_ODD_diLLMma/3_TestData"
 
 # Step 3: Define the ODD questions
+# Create a list of questions to check compliance
 odd_questions = [
     "1. Does this image have poor visibility (e.g., heavy rain, snow, fog)?",
     "2. Is the camera obstructed (e.g., by mud, ice, snow)?",
@@ -26,71 +32,65 @@ odd_questions = [
     "11. Is the road in this image on a hill?"
 ]
 
-# Step 4: Initialize dictionaries to store results
-compliance_results = {}  # To store whether each image is "Compliant" or "Non-compliant"
-compliance_matrix = {}  # To store detailed responses for each image and question
 
-# Step 5: Define a function to interact with ChatGPT
+# Step 4: Define a function to interact with ChatGPT
+# This function creates a prompt and sends it to the GPT model for answers
 def ask_chatgpt(image_name, questions):
-    """
-    Constructs a prompt using the image name and ODD questions,
-    sends it to ChatGPT, and retrieves responses.
-    """
-    # Create a prompt for ChatGPT
+    # Combine the image name and questions into a single prompt
     prompt = f"The image is from a front-facing camera in a car. Based on this description, answer the following questions with 'yes' or 'no':\n\n"
-    for question in questions:
-        prompt += f"{question}\n"  # Add each question to the prompt
+    prompt += "\n".join(questions)
 
-    try:
-        # Send the prompt to ChatGPT using OpenAI's API
-        response = openai.Completion.create(
-            engine="text-davinci-003",  # Specify the GPT model
-            prompt=prompt,
-            max_tokens=300,  # Limit the length of the response
-            temperature=0.7  # Control response creativity (lower = more focused)
-        )
-        # Split the response into a list of answers
-        return response.choices[0].text.strip().split("\n")
-    except Exception as e:
-        print(f"Error querying ChatGPT: {e}")  # Print an error message if the API call fails
-        return ["Error"] * len(questions)  # Return placeholder responses in case of error
+    # Query OpenAI's API and retrieve the response
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=300,
+        temperature=0.7
+    )
 
-# Step 6: Check if the folder exists
-if not os.path.exists(image_folder):
-    print(f"Error: The folder '{image_folder}' does not exist.")  # Handle missing folder
-else:
-    # Get the list of image files in the folder
-    image_files = [f for f in os.listdir(image_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    # Split the response text into individual answers
+    return response.choices[0].text.strip().split("\n")
 
-    if not image_files:  # Handle case where no image files are found
-        print("No image files found in the folder.")
-    else:
-        # Step 7: Iterate through each image
-        for image_file in image_files:
-            print(f"\nAnalyzing image: {image_file}")  # Indicate which image is being processed
 
-            # Ask ChatGPT the ODD questions for the image
-            responses = ask_chatgpt(image_file, odd_questions)
+# Step 5: Define dictionaries to store results
+# compliance_results stores "Compliant" or "Non-compliant" for each image
+# compliance_matrix stores detailed answers to each question for each image
+compliance_results = {}
+compliance_matrix = {}
 
-            if responses[0] == "Error":  # Skip the image if there's an error
-                print(f"Skipping {image_file} due to error in ChatGPT response.")
-                continue
+# Get the list of image files in the folder
+image_files = [f for f in os.listdir(image_folder) if f.endswith(('.png', '.jpg', '.jpeg'))]
 
-            # Determine compliance (all answers must be "yes" to be compliant)
-            is_compliant = all("yes" in response.lower() for response in responses)
+# Step 6: Handle the case where no image files are found
+if not image_files:
+    print("No image files found in the folder.")
+    exit()
 
-            # Store results
-            compliance_matrix[image_file] = responses  # Detailed responses
-            compliance_results[image_file] = "Compliant" if is_compliant else "Non-compliant"  # Compliance status
+# Step 7: Analyze each image in the folder
+# Loop through each image file and process it
+for image_file in image_files:
+    print(f"\nAnalyzing image: {image_file}")
+
+    # Get answers from ChatGPT for the current image
+    responses = ask_chatgpt(image_file, odd_questions)
+
+    # Check compliance based on whether all answers are "yes"
+    is_compliant = all("yes" in response.lower() for response in responses)
+
+    # Store the compliance results
+    compliance_matrix[image_file] = responses
+    compliance_results[image_file] = "Compliant" if is_compliant else "Non-compliant"
 
 # Step 8: Output the compliance results
+# Print the summary of compliance results for all images
 print("\nCompliance Results:")
 for photo, compliance in compliance_results.items():
     print(f"{photo}: {compliance}")
 
 # Step 9: Output the compliance matrix
+# Print the detailed question-by-question responses for each image
 print("\nCompliance Matrix:")
 for photo, responses in compliance_matrix.items():
-    print(f"{photo}:")  # Print the image name
+    print(f"{photo}:")
     for question, response in zip(odd_questions, responses):
-        print(f"  {question}: {response}")  # Print each question with its response
+        print(f"  {question}: {response}")
